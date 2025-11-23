@@ -1,0 +1,29 @@
+experiment_name: "gloss2motion_baseline"
+
+data:
+  meta_train: "data/processed/meta_train.json"
+  meta_val: "data/processed/meta_val.json"
+  gloss_vocab: "data/processed/gloss_vocab.json"
+  target_T: 60
+  max_gloss_len: 30
+  batch_size: 16
+  num_workers: 4
+
+model:
+  d_model: 512
+  nhead: 8
+  num_encoder_layers: 4
+  num_decoder_layers: 4
+  dim_feedforward: 1024
+  num_joints: 60
+  dropout: 0.1
+
+train:
+  epochs: 50
+  lr: 1e-4
+  weight_decay: 1e-4
+  device: "cuda"
+
+logging:
+  output_dir: "data/outputs"
+  save_every: 1
