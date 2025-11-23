@@ -6,7 +6,6 @@ from torch.utils.data import Dataset
 from .keypoints_io import load_openpose_sequence
 from .keypoints_processing import normalize_keypoints_3d, resample_motion
 
-
 class Gloss2MotionDataset(Dataset):
     def __init__(
         self,
@@ -34,30 +33,37 @@ class Gloss2MotionDataset(Dataset):
     def __getitem__(self, idx):
         info = self.meta[idx]
 
-        gloss_seq = info["gloss_seq"]          # ["왼쪽", ...]
-        kp_prefix = info["keypoints_prefix"]   # .../NIA_SL_XXX/NIA_SL_XXX
-        # fps = info.get("fps", 30)            # 필요하면 나중에 사용
+        gloss_seq = info["gloss_seq"]
+        kp_prefix = info["keypoints_prefix"]
 
-        # ---- gloss 인코딩 ----
         gloss_ids, gloss_len = self.gloss_vocab.encode(
             gloss_seq, max_len=self.max_gloss_len
-        )  # (max_len,), int
+        )
 
-        # ---- keypoints 로드 → (T, J, 3) ----
         pose_seq, lh_seq, rh_seq = load_openpose_sequence(
             kp_prefix, use_3d=self.use_3d
-        )  # (T,25,3), (T,21,3), (T,21,3)
+        )  # (T_total, ...)
 
-        motion = normalize_keypoints_3d(pose_seq, lh_seq, rh_seq)  # (T,J,3)
-        motion = resample_motion(motion, self.target_T)            # (target_T,J,3)
+        # ---- segment 범위가 있으면 자르기 ----
+        segment = info.get("segment", None)
+        if segment is not None:
+            s = segment.get("start_frame", None)
+            e = segment.get("end_frame", None)
+            if s is not None and e is not None:
+                pose_seq = pose_seq[s:e]
+                lh_seq = lh_seq[s:e]
+                rh_seq = rh_seq[s:e]
+
+        motion = normalize_keypoints_3d(pose_seq, lh_seq, rh_seq)
+        motion = resample_motion(motion, self.target_T)
 
         motion_tensor = torch.from_numpy(motion).float()
-        motion_len = self.target_T  # v1에서는 고정 길이
+        motion_len = self.target_T
 
-        sample = {
-            "gloss_ids": gloss_ids,                 # (max_gloss_len,)
-            "gloss_len": torch.tensor(gloss_len),   # scalar
-            "motion": motion_tensor,                # (T,J,3)
-            "motion_len": torch.tensor(motion_len)  # scalar
+        return {
+            "gloss_ids": gloss_ids,
+            "gloss_len": torch.tensor(gloss_len),
+            "motion": motion_tensor,
+            "motion_len": torch.tensor(motion_len),
         }
-        return sample
+    
